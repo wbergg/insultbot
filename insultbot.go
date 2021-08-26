@@ -88,7 +88,8 @@ func main() {
 					if err != nil {
 						panic(err)
 					}
-					message := strings.Replace(insult, "%s", s[1], 1)
+					nickname := strings.Replace(message.Params[1], "!insult ", "", 1)
+					message := strings.Replace(insult, "%s", nickname, 1)
 					bot.Send(fmt.Sprintf("PRIVMSG %s :%s\r\n", bot.Channel, message))
 				}
 			}

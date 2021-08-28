@@ -14,13 +14,14 @@ import (
 )
 
 type Bot struct {
-	Server  string
-	Nick    string
-	User    string
-	Channel string
-	Pass    string
-	conn    net.Conn
-	Data    []string
+	Server     string
+	Nick       string
+	User       string
+	Channel    string
+	Pass       string
+	conn       net.Conn
+	InsultData []string
+	ComplData  []string
 }
 
 func (bot *Bot) Send(command string) {
@@ -70,11 +71,11 @@ func (bot *Bot) Connect() (conn net.Conn, err error) {
 	return bot.conn, err
 }
 
-func (bot *Bot) ReadFile(filename string) error {
+func (bot *Bot) ReadFile(filename string) ([]string, error) {
 
 	f, err := os.Open(filename)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	scanner := bufio.NewScanner(f)
 	fileData := []string{}
@@ -83,8 +84,7 @@ func (bot *Bot) ReadFile(filename string) error {
 		fileData = append(fileData, line)
 	}
 	f.Close()
-	bot.Data = fileData
-	return nil
+	return fileData, err
 }
 
 func (bot *Bot) WriteFile(filename string, text string) error {

@@ -34,10 +34,18 @@ func main() {
 	tp := textproto.NewReader(reader)
 
 	// Preload insults
-	err := bot.ReadFile("files/insults.txt")
+	insultData, err := bot.ReadFile("files/insults.txt")
 	if err != nil {
 		panic(err)
 	}
+	bot.InsultData = insultData
+
+	// Preload compliments
+	complData, err := bot.ReadFile("files/compliments.txt")
+	if err != nil {
+		panic(err)
+	}
+	bot.ComplData = complData
 
 	for {
 		line, _ := tp.ReadLine()
@@ -73,23 +81,31 @@ func main() {
 		if message.Command == "PRIVMSG" {
 			randTime := rand.NewSource(time.Now().UnixNano())
 			r := rand.New(randTime)
-			randomIndex := r.Intn(len(bot.Data))
-			insult := bot.Data[randomIndex]
+			randomIndex := r.Intn(len(bot.InsultData))
+			insult := bot.InsultData[randomIndex]
 
 			// Split incoming message
 			s := strings.Split(message.Params[1], " ")
 
 			// Check first word in message
-			if s[0] == "!insult" {
+			if s[0] == "!insult" || s[0] == ".insult" {
 				// Check lenght of message and do stuff
 				if len(s) > 1 {
 					// Load insults
-					err := bot.ReadFile("files/insults.txt")
+					insultData, err := bot.ReadFile("files/insults.txt")
 					if err != nil {
 						panic(err)
 					}
-					nickname := strings.Replace(message.Params[1], "!insult ", "", 1)
-					message := strings.Replace(insult, "%s", nickname, 1)
+					bot.InsultData = insultData
+
+					var nickname string
+					if s[0] == "!insult" {
+						nickname = strings.Replace(message.Params[1], "!insult ", "", 1)
+					}
+					if s[0] == ".insult" {
+						nickname = strings.Replace(message.Params[1], ".insult ", "", 1)
+					}
+					message := strings.Replace(insult, "%s", nickname, -1)
 					bot.Send(fmt.Sprintf("PRIVMSG %s :%s\r\n", bot.Channel, message))
 				}
 			}
@@ -100,15 +116,79 @@ func main() {
 			s := strings.Split(message.Params[1], " ")
 
 			// Check first word in message
-			if s[0] == "!addinsult" {
+			if s[0] == "!addinsult" || s[0] == ".addinsult" {
 				// Check lenght of message and do stuff
 				if len(s) > 1 {
-					message := strings.Replace(message.Params[1], "!addinsult ", "", 1)
-					err := bot.WriteFile("files/insults.txt", message)
+					var addinsult string
+					if s[0] == "!addinsult" {
+						addinsult = strings.Replace(message.Params[1], "!addinsult ", "", 1)
+					}
+					if s[0] == ".addinsult" {
+						addinsult = strings.Replace(message.Params[1], ".addinsult ", "", 1)
+					}
+
+					err := bot.WriteFile("files/insults.txt", addinsult)
 					if err != nil {
 						panic(err)
 					}
-					bot.Send(fmt.Sprintf("PRIVMSG %s :Added insult: %s\r\n", bot.Channel, message))
+					bot.Send(fmt.Sprintf("PRIVMSG %s :Added insult: %s\r\n", bot.Channel, addinsult))
+				}
+			}
+		}
+		// !compliment function
+		if message.Command == "PRIVMSG" {
+			randTime := rand.NewSource(time.Now().UnixNano())
+			r := rand.New(randTime)
+			randomIndex := r.Intn(len(bot.ComplData))
+			compliment := bot.ComplData[randomIndex]
+
+			// Split incoming message
+			s := strings.Split(message.Params[1], " ")
+
+			// Check first word in message
+			if s[0] == "!compliment" || s[0] == ".compliment" {
+				// Check lenght of message and do stuff
+				if len(s) > 1 {
+					// Load compliments
+					complData, err := bot.ReadFile("files/compliments.txt")
+					if err != nil {
+						panic(err)
+					}
+					bot.ComplData = complData
+
+					var nickname string
+					if s[0] == "!compliment" {
+						nickname = strings.Replace(message.Params[1], "!compliment ", "", 1)
+					}
+					if s[0] == ".compliment" {
+						nickname = strings.Replace(message.Params[1], ".compliment ", "", 1)
+					}
+					message := strings.Replace(compliment, "%s", nickname, -1)
+					bot.Send(fmt.Sprintf("PRIVMSG %s :%s\r\n", bot.Channel, message))
+				}
+			}
+		}
+		// !addcompliment function
+		if message.Command == "PRIVMSG" {
+			// Split incoming message
+			s := strings.Split(message.Params[1], " ")
+
+			// Check first word in message
+			if s[0] == "!addcompliment" || s[0] == ".addcompliment" {
+				// Check lenght of message and do stuff
+				if len(s) > 1 {
+					var addcompl string
+					if s[0] == "!addcompliment" {
+						addcompl = strings.Replace(message.Params[1], "!addcompliment ", "", 1)
+					}
+					if s[0] == ".addcompliment" {
+						addcompl = strings.Replace(message.Params[1], ".addcompliment ", "", 1)
+					}
+					err := bot.WriteFile("files/compliments.txt", addcompl)
+					if err != nil {
+						panic(err)
+					}
+					bot.Send(fmt.Sprintf("PRIVMSG %s :Added compliment: %s\r\n", bot.Channel, addcompl))
 				}
 			}
 		}
@@ -116,7 +196,7 @@ func main() {
 		if message.Command == "PRIVMSG" {
 			// Print help
 			if message.Params[1] == "!help" {
-				bot.Send(fmt.Sprintf("PRIVMSG %s :Welcome to insultbot 1.0!\r\n", bot.Channel))
+				bot.Send(fmt.Sprintf("PRIVMSG %s :Welcome to insultbot 1.1!\r\n", bot.Channel))
 				bot.Send(fmt.Sprintf("PRIVMSG %s :-----\r\n", bot.Channel))
 				bot.Send(fmt.Sprintf("PRIVMSG %s :To insult someone, use !insult <nick>\r\n", bot.Channel))
 				bot.Send(fmt.Sprintf("PRIVMSG %s :To add your own insult, use !addinsult <insult>, use %%s as a placeholder for <nick>.\r\n", bot.Channel))

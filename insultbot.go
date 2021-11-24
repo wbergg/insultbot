@@ -99,19 +99,19 @@ func main() {
 					bot.InsultData = insultData
 
 					var nickname string
-					var nickname_fixed string
+
 					if s[0] == "!insult" {
 						nickname = strings.Replace(message.Params[1], "!insult ", "", 1)
-						// Remove trailing spaces
-						nickname_fixed = strings.Replace(nickname, " ", "", 1)
 					}
 					if s[0] == ".insult" {
 						nickname = strings.Replace(message.Params[1], ".insult ", "", 1)
-						// Remove trailing spaces
-						nickname_fixed = strings.Replace(nickname, " ", "", 1)
 					}
-					message := strings.Replace(insult, "%s", nickname_fixed, -1)
-					bot.Send(fmt.Sprintf("PRIVMSG %s :%s\r\n", bot.Channel, message))
+
+					message := strings.Replace(insult, "%s", nickname, -1)
+					// Remove double space in message
+					message_fixed := strings.Replace(message, "  ", " ", -1)
+
+					bot.Send(fmt.Sprintf("PRIVMSG %s :%s\r\n", bot.Channel, message_fixed))
 				}
 			}
 		}
@@ -162,19 +162,19 @@ func main() {
 					bot.ComplData = complData
 
 					var nickname string
-					var nickname_fixed string
+
 					if s[0] == "!compliment" {
 						nickname = strings.Replace(message.Params[1], "!compliment ", "", 1)
-						// Remove trailing spaces
-						nickname_fixed = strings.Replace(nickname, " ", "", 1)
 					}
 					if s[0] == ".compliment" {
 						nickname = strings.Replace(message.Params[1], ".compliment ", "", 1)
-						// Remove trailing spaces
-						nickname_fixed = strings.Replace(nickname, " ", "", 1)
 					}
-					message := strings.Replace(compliment, "%s", nickname_fixed, -1)
-					bot.Send(fmt.Sprintf("PRIVMSG %s :%s\r\n", bot.Channel, message))
+
+					message := strings.Replace(compliment, "%s", nickname, -1)
+					// Remove double space in message
+					message_fixed := strings.Replace(message, "  ", " ", -1)
+
+					bot.Send(fmt.Sprintf("PRIVMSG %s :%s\r\n", bot.Channel, message_fixed))
 				}
 			}
 		}

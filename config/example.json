@@ -1,0 +1,15 @@
+{
+    "Telegram": {
+        "enabled": "true",
+		"tgAPIkey": "xxx",
+		"tgChannel": "xxx"
+	},
+    "IRC": {
+        "enabled": "true",
+        "server": "xxx:port",
+		"nick": "xxx",
+		"user": "xxx",
+		"channel": "#xxx",
+		"password": ""
+    }
+}

@@ -2,23 +2,33 @@
 
 In memory of Riverbot
 
-This is a project to revive the old bot called "riverbot" which was a bot written by Python(?). It had a simple !insult function were you could insult people with in an IRC-channel. The soruce code from riverbot is lost, however, I had a backup of insults.txt. I've taken the liberty to rewrite the entire bot in GO. 
+This is a project to revive the old bot called "riverbot" which was a bot written in Python(?). It had a simple !insult function where you could insult people with in an IRC-channel. The source code from riverbot is lost, however, I had a backup of insults.txt. I've taken the liberty to rewrite the entire bot in GO. 
+
+In version 2.0 support for Telegram is added since IRC is slowly dying and being more and more phased out. With the new version, a config file is added to control options and enable/disable services.
 
 ## Setup
-Edit the top part in insultbot.go with your server settings:
+Create a config-file called "config.json" that should look like this:
 
 ```
 // IRC server settings
-bot := irc.NewBot(
-    "xxx:yyyy",    // Server:port
-    "nick",        // Nick
-    "user",        // User
-    "#channel",    // Channel
-    "",            // Channel password
-)
+{
+    "Telegram": {
+        "enabled": "true",
+		"tgAPIkey": "xxx",
+		"tgChannel": "xxx"
+	},
+    "IRC": {
+        "enabled": "true",
+        "server": "xxx:port",
+		"nick": "xxx",
+		"user": "xxx",
+		"channel": "#xxx",
+		"password": ""
+    }
+}
 ```
 
-Create a directory called files/ and create a file called insults.txt in that dir.
+Create a directory called files/ and create a file called insults.txt and compliments.txt in that dir.
 
 ## Running
 
@@ -26,10 +36,18 @@ Create a directory called files/ and create a file called insults.txt in that di
 go run insultbot.go
 ```
 
-### Debug
-Set debug bool to true or false in insultbot.go to recive debug into to stdout
+Or with arguments:
 
 ```
-// Debug output to stdout
-debug := true
+  -config-file string
+    	Absolute path for config-file (default "./config/config.json")
+  -debug
+    	Turns on debug for telegram
+  -stdout
+    	Turns on stdout rather than sending to telegram
+  -telegram-test
+    	Sends a test message to specified telegram channel
 ```
+
+### Debug
+Set debug or stdout to true in an argument to insultbot.go to receive debug and stdout.

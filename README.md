@@ -41,10 +41,10 @@ Or with arguments:
 ```
   -config-file string
     	Absolute path for config-file (default "./config/config.json")
-  -debug
-    	Turns on debug for telegram
   -stdout
     	Turns on stdout rather than sending to telegram
+  -telegram-debug
+    	Turns on debug for telegram
   -telegram-test
     	Sends a test message to specified telegram channel
 ```

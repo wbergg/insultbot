@@ -11,7 +11,7 @@ import (
 
 func main() {
 	// Enable bool debug flag
-	debugTelegram := flag.Bool("telegram", false, "Turns on debug for telegram")
+	debugTelegram := flag.Bool("telegram-debug", false, "Turns on debug for telegram")
 	debugStdout := flag.Bool("stdout", false, "Turns on stdout rather than sending to telegram")
 	telegramTest := flag.Bool("telegram-test", false, "Sends a test message to specified telegram channel")
 	configFile := flag.String("config-file", "./config/config.json", "Absolute path for config-file")

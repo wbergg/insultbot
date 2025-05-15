@@ -6,6 +6,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/wbergg/insultbot/config"
+	"github.com/wbergg/insultbot/irc"
 	"github.com/wbergg/insultbot/tele"
 )
 
@@ -32,6 +33,6 @@ func main() {
 	if config.IRC.Enabled {
 		fmt.Println("IRC - Enabled. Starting...")
 		// call irc package
-		//irc.Run()
+		irc.Run(*configFile, *debugTelegram, *debugStdout, *telegramTest)
 	}
 }

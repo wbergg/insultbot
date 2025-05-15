@@ -2,15 +2,14 @@
 
 In memory of Riverbot
 
-This is a project to revive the old bot called "riverbot" which was a bot written in Python(?). It had a simple !insult function where you could insult people with in an IRC-channel. The source code from riverbot is lost, however, I had a backup of insults.txt. I've taken the liberty to rewrite the entire bot in GO. 
+This is a project to revive the old bot called "riverbot" which was a bot written in Python(?). It had a simple !insult function where you could insult people with in an IRC-channel. The source code from riverbot is long lost, however, I had a backup of insults.txt. I've taken the liberty to rewrite the entire bot in GO. 
 
-In version 2.0 support for Telegram is added since IRC is slowly dying and being more and more phased out. With the new version, a config file is added to control options and enable/disable services.
+In version 2.0 support for Telegram is added since IRC is slowly dying and being more and more phased out. With the new version, a config file is added to control options and enable/disable different services and settings.
 
 ## Setup
-Create a config-file called "config.json" that should look like this:
+Create a config-file called "config.json" in the config/ dir.
 
 ```
-// IRC server settings
 {
     "Telegram": {
         "enabled": "true",

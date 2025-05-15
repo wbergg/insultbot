@@ -3,13 +3,15 @@ package irc
 import (
 	"bufio"
 	"fmt"
-	"log"
+	"math/rand"
 	"net"
 	"net/textproto"
 	"os"
-	"regexp"
+	"strings"
 	"time"
 
+	log "github.com/sirupsen/logrus"
+	"github.com/wbergg/insultbot/config"
 	parser "gopkg.in/sorcix/irc.v2"
 )
 
@@ -24,67 +26,176 @@ type Bot struct {
 	ComplData  []string
 }
 
-func (bot *Bot) Send(command string) {
-	fmt.Fprintf(bot.conn, "%s\r\n", command)
-}
-
-func NewBot(server string, Nick string, User string, Channel string, pass string) *Bot {
-	return &Bot{
-		Server:  server,
-		Nick:    Nick,
-		User:    User,
-		Channel: Channel,
-		Pass:    pass,
-		conn:    nil,
-	}
-}
-
-func (bot *Bot) Connect() (conn net.Conn, err error) {
-
-	bot.conn, err = net.Dial("tcp", bot.Server)
+func (bot *Bot) Connect() (net.Conn, error) {
+	conn, err := net.Dial("tcp", bot.Server)
 	if err != nil {
-		log.Fatal("Unable to connect to IRC server ", err)
+		return nil, fmt.Errorf("unable to connect: %w", err)
 	}
+	bot.conn = conn
 	log.Printf("Connected to IRC server %s (%s) \n", bot.Server, bot.conn.RemoteAddr())
 
 	reader := bufio.NewReader(bot.conn)
 	tp := textproto.NewReader(reader)
 	line, err := tp.ReadLine()
-	message := parser.ParseMessage(line)
+	if err != nil {
+		return nil, fmt.Errorf("initial read failed: %w", err)
+	}
 
+	message := parser.ParseMessage(line)
 	if message.Command == "PING" {
-		r := regexp.MustCompile("[^0-9.]")
-		s := r.ReplaceAllString(line, "")
-		//fmt.Println(fmt.Sprint("PONG ", s))
-		bot.Send(fmt.Sprint("PONG ", s))
+		bot.Send(fmt.Sprintf("PONG %s", message.Trailing()))
 	}
 
 	time.Sleep(2 * time.Second)
 
-	if len(bot.Pass) > 0 {
-		bot.Send(fmt.Sprintf("PASS %s \r\n", bot.Pass))
+	if bot.Pass != "" {
+		bot.Send(fmt.Sprintf("PASS %s", bot.Pass))
 	}
 	bot.Send(fmt.Sprintf("USER %s 8 * :%s", bot.User, bot.User))
-	bot.Send(fmt.Sprintf("NICK %s\r\n", bot.Nick))
-	bot.Send(fmt.Sprintf("JOIN %s\r\n", bot.Channel))
+	bot.Send(fmt.Sprintf("NICK %s", bot.Nick))
+	bot.Send(fmt.Sprintf("JOIN %s", bot.Channel))
 
-	return bot.conn, err
+	return bot.conn, nil
 }
 
-func (bot *Bot) ReadFile(filename string) ([]string, error) {
-
-	f, err := os.Open(filename)
+func Run(cfg string, debugTelegram bool, debugStdout bool, telegramTest bool) error {
+	// Load config
+	config, err := config.LoadConfig(cfg)
 	if err != nil {
-		return nil, err
+		log.Error(err)
+		panic("Could not load config, check config/config.json")
 	}
-	scanner := bufio.NewScanner(f)
-	fileData := []string{}
-	for scanner.Scan() {
-		line := scanner.Text()
-		fileData = append(fileData, line)
+
+	bot := &Bot{
+		Server:  config.IRC.Server,
+		Nick:    config.IRC.Nick,
+		User:    config.IRC.User,
+		Channel: config.IRC.Channel,
+		Pass:    config.IRC.Password,
 	}
-	f.Close()
-	return fileData, err
+
+	conn, err := bot.Connect()
+	if err != nil {
+		log.Fatalf("Connection failed: %v", err)
+	}
+	defer conn.Close()
+
+	reader := bufio.NewReader(conn)
+	tp := textproto.NewReader(reader)
+
+	// Load insults and compliments
+	data, err := os.ReadFile("files/insults.txt")
+	if err != nil {
+		log.Fatalf("Error reading insults: %v", err)
+	}
+	bot.InsultData = strings.Split(string(data), "\n")
+
+	data, err = os.ReadFile("files/compliments.txt")
+	if err != nil {
+		log.Fatalf("Error reading compliments: %v", err)
+	}
+	bot.ComplData = strings.Split(string(data), "\n")
+
+	for {
+		line, err := tp.ReadLine()
+		if err != nil {
+			log.Printf("Read error: %v", err)
+			continue
+		}
+
+		message := parser.ParseMessage(line)
+		if debugStdout {
+			fmt.Printf("-> %s\n", line)
+		}
+
+		switch message.Command {
+		case "PING":
+			bot.Send(fmt.Sprintf("PONG %s", message.Trailing()))
+
+		// Server welcome message, send join channel
+		case "001":
+			bot.Send(fmt.Sprintf("JOIN %s", bot.Channel))
+
+		case "PRIVMSG":
+			PrivMsg(bot, message)
+		}
+	}
+}
+
+func PrivMsg(bot *Bot, msg *parser.Message) {
+	params := msg.Params
+	if len(params) < 2 {
+		return
+	}
+
+	//target := params[0]
+	text := params[1]
+	words := strings.Fields(text)
+	if len(words) == 0 {
+		return
+	}
+
+	cmd := words[0]
+	args := strings.Join(words[1:], " ")
+	//nick := msg.Prefix.Name
+
+	switch cmd {
+	case "!" + bot.Nick, bot.Nick:
+		bot.Send(fmt.Sprintf("PRIVMSG %s :You said my name?", bot.Channel))
+
+	case "!insult", ".insult":
+		if args != "" {
+			r := rand.New(rand.NewSource(time.Now().UnixNano()))
+			insult := bot.InsultData[r.Intn(len(bot.InsultData))]
+			msg := strings.Replace(insult, "%s", args, -1)
+			msg = strings.ReplaceAll(msg, "  ", " ")
+			bot.Send(fmt.Sprintf("PRIVMSG %s :%s", bot.Channel, msg))
+		}
+
+	case "!addinsult", ".addinsult":
+		if args != "" {
+			err := bot.WriteFile("files/insults.txt", args)
+			if err == nil {
+				bot.InsultData = append(bot.InsultData, args)
+				bot.Send(fmt.Sprintf("PRIVMSG %s :Added insult: %s", bot.Channel, args))
+			}
+		}
+
+	case "!compliment", ".compliment":
+		if args != "" {
+			r := rand.New(rand.NewSource(time.Now().UnixNano()))
+			compl := bot.ComplData[r.Intn(len(bot.ComplData))]
+			msg := strings.Replace(compl, "%s", args, -1)
+			msg = strings.ReplaceAll(msg, "  ", " ")
+			bot.Send(fmt.Sprintf("PRIVMSG %s :%s", bot.Channel, msg))
+		}
+
+	case "!addcompliment", ".addcompliment":
+		if args != "" {
+			err := bot.WriteFile("files/compliments.txt", args)
+			if err == nil {
+				bot.ComplData = append(bot.ComplData, args)
+				bot.Send(fmt.Sprintf("PRIVMSG %s :Added compliment: %s", bot.Channel, args))
+			}
+		}
+
+	case "!help", ".help":
+		message := []string{
+			"Welcome to insultbot!",
+			"-----",
+			"Use !insult <nick> to insult.",
+			"Use !addinsult <insult> (with %s as a nickname placeholder).",
+			"Use !compliment <nick> to compliment.",
+			"Use !addcompliment <compliment> (with %s).",
+		}
+		for _, h := range message {
+			bot.Send(fmt.Sprintf("PRIVMSG %s :%s", bot.Channel, h))
+		}
+	}
+}
+
+func (bot *Bot) Send(command string) {
+	fmt.Fprintf(bot.conn, "%s\r\n", command)
 }
 
 func (bot *Bot) WriteFile(filename string, text string) error {
@@ -99,207 +210,4 @@ func (bot *Bot) WriteFile(filename string, text string) error {
 	}
 	f.Close()
 	return nil
-}
-
-// Temp moving all irc stuff to an own package to fix later
-
-	// IRC server settings
-	bot := irc.NewBot(
-		"se.quakenet.org:6667", // Server:port
-		"insultbot-dev",        // Nick
-		"insultbot-dev",        // User
-		"#wberg",               // Channel
-		"",                     // Channel password
-	)
-
-	// Debug output to stdout
-	debug := true
-
-	conn, _ := bot.Connect()
-	defer conn.Close()
-	reader := bufio.NewReader(conn)
-	tp := textproto.NewReader(reader)
-
-	// Preload insults
-	insultData, err := bot.ReadFile("files/insults.txt")
-	if err != nil {
-		panic(err)
-	}
-	bot.InsultData = insultData
-
-	// Preload compliments
-	complData, err := bot.ReadFile("files/compliments.txt")
-	if err != nil {
-		panic(err)
-	}
-	bot.ComplData = complData
-
-	for {
-		line, _ := tp.ReadLine()
-		message := parser.ParseMessage(line)
-
-		if debug {
-			fmt.Printf("%v \n", message)
-		}
-
-		// Ping function, designed to handle Quakenet pings
-		if message.Command == "PING" {
-			r := regexp.MustCompile("[^0-9.]")
-			s := r.ReplaceAllString(line, "")
-			fmt.Println(fmt.Sprint("PONG ", s))
-			bot.Send(fmt.Sprint("PONG ", s))
-		}
-
-		if message.Command == "PRIVMSG" {
-			if message.Params[0] == bot.Nick {
-				// temp test for joining channel on query
-				bot.Send(fmt.Sprintf("JOIN %s\r\n", bot.Channel))
-				bot.Send(fmt.Sprintf("PRIVMSG %s hello\r\n", bot.Channel))
-			}
-		}
-		// Simple reply upon bot nick
-		if message.Command == "PRIVMSG" {
-			if message.Params[1] == "!"+bot.Nick || message.Params[1] == bot.Nick {
-				// test message
-				bot.Send(fmt.Sprintf("PRIVMSG %s :You said my name?\r\n", bot.Channel))
-			}
-		}
-		// !insult function
-		if message.Command == "PRIVMSG" {
-			randTime := rand.NewSource(time.Now().UnixNano())
-			r := rand.New(randTime)
-			randomIndex := r.Intn(len(bot.InsultData))
-			insult := bot.InsultData[randomIndex]
-
-			// Split incoming message
-			s := strings.Split(message.Params[1], " ")
-
-			// Check first word in message
-			if s[0] == "!insult" || s[0] == ".insult" {
-				// Check lenght of message and do stuff
-				if len(s) > 1 {
-					// Load insults
-					insultData, err := bot.ReadFile("files/insults.txt")
-					if err != nil {
-						panic(err)
-					}
-					bot.InsultData = insultData
-
-					var nickname string
-
-					if s[0] == "!insult" {
-						nickname = strings.Replace(message.Params[1], "!insult ", "", 1)
-					}
-					if s[0] == ".insult" {
-						nickname = strings.Replace(message.Params[1], ".insult ", "", 1)
-					}
-
-					message := strings.Replace(insult, "%s", nickname, -1)
-					// Remove double space in message
-					message_fixed := strings.Replace(message, "  ", " ", -1)
-
-					bot.Send(fmt.Sprintf("PRIVMSG %s :%s\r\n", bot.Channel, message_fixed))
-				}
-			}
-		}
-		// !addinsult function
-		if message.Command == "PRIVMSG" {
-			// Split incoming message
-			s := strings.Split(message.Params[1], " ")
-
-			// Check first word in message
-			if s[0] == "!addinsult" || s[0] == ".addinsult" {
-				// Check lenght of message and do stuff
-				if len(s) > 1 {
-					var addinsult string
-					if s[0] == "!addinsult" {
-						addinsult = strings.Replace(message.Params[1], "!addinsult ", "", 1)
-					}
-					if s[0] == ".addinsult" {
-						addinsult = strings.Replace(message.Params[1], ".addinsult ", "", 1)
-					}
-
-					err := bot.WriteFile("files/insults.txt", addinsult)
-					if err != nil {
-						panic(err)
-					}
-					bot.Send(fmt.Sprintf("PRIVMSG %s :Added insult: %s\r\n", bot.Channel, addinsult))
-				}
-			}
-		}
-		// !compliment function
-		if message.Command == "PRIVMSG" {
-			randTime := rand.NewSource(time.Now().UnixNano())
-			r := rand.New(randTime)
-			randomIndex := r.Intn(len(bot.ComplData))
-			compliment := bot.ComplData[randomIndex]
-
-			// Split incoming message
-			s := strings.Split(message.Params[1], " ")
-
-			// Check first word in message
-			if s[0] == "!compliment" || s[0] == ".compliment" {
-				// Check lenght of message and do stuff
-				if len(s) > 1 {
-					// Load compliments
-					complData, err := bot.ReadFile("files/compliments.txt")
-					if err != nil {
-						panic(err)
-					}
-					bot.ComplData = complData
-
-					var nickname string
-
-					if s[0] == "!compliment" {
-						nickname = strings.Replace(message.Params[1], "!compliment ", "", 1)
-					}
-					if s[0] == ".compliment" {
-						nickname = strings.Replace(message.Params[1], ".compliment ", "", 1)
-					}
-
-					message := strings.Replace(compliment, "%s", nickname, -1)
-					// Remove double space in message
-					message_fixed := strings.Replace(message, "  ", " ", -1)
-
-					bot.Send(fmt.Sprintf("PRIVMSG %s :%s\r\n", bot.Channel, message_fixed))
-				}
-			}
-		}
-		// !addcompliment function
-		if message.Command == "PRIVMSG" {
-			// Split incoming message
-			s := strings.Split(message.Params[1], " ")
-
-			// Check first word in message
-			if s[0] == "!addcompliment" || s[0] == ".addcompliment" {
-				// Check lenght of message and do stuff
-				if len(s) > 1 {
-					var addcompl string
-					if s[0] == "!addcompliment" {
-						addcompl = strings.Replace(message.Params[1], "!addcompliment ", "", 1)
-					}
-					if s[0] == ".addcompliment" {
-						addcompl = strings.Replace(message.Params[1], ".addcompliment ", "", 1)
-					}
-					err := bot.WriteFile("files/compliments.txt", addcompl)
-					if err != nil {
-						panic(err)
-					}
-					bot.Send(fmt.Sprintf("PRIVMSG %s :Added compliment: %s\r\n", bot.Channel, addcompl))
-				}
-			}
-		}
-		// !help function
-		if message.Command == "PRIVMSG" {
-			// Print help
-			if message.Params[1] == "!help" {
-				bot.Send(fmt.Sprintf("PRIVMSG %s :Welcome to insultbot 1.1!\r\n", bot.Channel))
-				bot.Send(fmt.Sprintf("PRIVMSG %s :-----\r\n", bot.Channel))
-				bot.Send(fmt.Sprintf("PRIVMSG %s :To insult someone, use !insult <nick>\r\n", bot.Channel))
-				bot.Send(fmt.Sprintf("PRIVMSG %s :To add your own insult, use !addinsult <insult>, use %%s as a placeholder for <nick>.\r\n", bot.Channel))
-				bot.Send(fmt.Sprintf("PRIVMSG %s :For example: !addinsult %%s smells bad.\r\n", bot.Channel))
-				bot.Send(fmt.Sprintf("PRIVMSG %s :-----\r\n", bot.Channel))
-			}
-		}
-	}
 }

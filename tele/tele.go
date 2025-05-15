@@ -1,7 +1,6 @@
 package tele
 
 import (
-	"fmt"
 	"math/rand"
 	"os"
 	"strconv"
@@ -33,7 +32,6 @@ func Run(cfg string, debugTelegram bool, debugStdout bool, telegramTest bool) er
 	tg.Init(debugTelegram)
 
 	if telegramTest {
-		fmt.Println("penis")
 		tg.SendM("DEBUG: insultbot test message")
 		os.Exit(0)
 	}

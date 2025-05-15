@@ -128,7 +128,6 @@ func PrivMsg(bot *Bot, msg *parser.Message) {
 		return
 	}
 
-	//target := params[0]
 	text := params[1]
 	words := strings.Fields(text)
 	if len(words) == 0 {
@@ -136,46 +135,45 @@ func PrivMsg(bot *Bot, msg *parser.Message) {
 	}
 
 	cmd := words[0]
-	args := strings.Join(words[1:], " ")
-	//nick := msg.Prefix.Name
+	message := strings.Join(words[1:], " ")
 
 	switch cmd {
 	case "!" + bot.Nick, bot.Nick:
 		bot.Send(fmt.Sprintf("PRIVMSG %s :You said my name?", bot.Channel))
 
 	case "!insult", ".insult":
-		if args != "" {
+		if message != "" {
 			r := rand.New(rand.NewSource(time.Now().UnixNano()))
 			insult := bot.InsultData[r.Intn(len(bot.InsultData))]
-			msg := strings.Replace(insult, "%s", args, -1)
+			msg := strings.Replace(insult, "%s", message, -1)
 			msg = strings.ReplaceAll(msg, "  ", " ")
 			bot.Send(fmt.Sprintf("PRIVMSG %s :%s", bot.Channel, msg))
 		}
 
 	case "!addinsult", ".addinsult":
-		if args != "" {
-			err := bot.WriteFile("files/insults.txt", args)
+		if message != "" {
+			err := bot.WriteFile("files/insults.txt", message)
 			if err == nil {
-				bot.InsultData = append(bot.InsultData, args)
-				bot.Send(fmt.Sprintf("PRIVMSG %s :Added insult: %s", bot.Channel, args))
+				bot.InsultData = append(bot.InsultData, message)
+				bot.Send(fmt.Sprintf("PRIVMSG %s :Added insult: %s", bot.Channel, message))
 			}
 		}
 
 	case "!compliment", ".compliment":
-		if args != "" {
+		if message != "" {
 			r := rand.New(rand.NewSource(time.Now().UnixNano()))
 			compl := bot.ComplData[r.Intn(len(bot.ComplData))]
-			msg := strings.Replace(compl, "%s", args, -1)
+			msg := strings.Replace(compl, "%s", message, -1)
 			msg = strings.ReplaceAll(msg, "  ", " ")
 			bot.Send(fmt.Sprintf("PRIVMSG %s :%s", bot.Channel, msg))
 		}
 
 	case "!addcompliment", ".addcompliment":
-		if args != "" {
-			err := bot.WriteFile("files/compliments.txt", args)
+		if message != "" {
+			err := bot.WriteFile("files/compliments.txt", message)
 			if err == nil {
-				bot.ComplData = append(bot.ComplData, args)
-				bot.Send(fmt.Sprintf("PRIVMSG %s :Added compliment: %s", bot.Channel, args))
+				bot.ComplData = append(bot.ComplData, message)
+				bot.Send(fmt.Sprintf("PRIVMSG %s :Added compliment: %s", bot.Channel, message))
 			}
 		}
 
